@@ -1,48 +1,58 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>خطة عملي من الهاتف</title>
-    
+    <title>تطبيق العداد الشرطي</title>
     <style>
-        /* تلوين خلفية الصفحة بالكامل بالرمادي الفاتح المريح للعين */
         body {
-            background-color: #f0f2f5;
-            font-family: sans-serif; /* تغيير خط الكتابة ليكون أنيقاً */
-            padding: 20px;
+            font-family: sans-serif;
+            text-align: center;
+            padding-top: 50px;
+            background-color: #fafafa;
         }
-
-        /* تغيير لون العنوان الرئيسي إلى الأزرق الداكن */
-        h1 {
+        .counter-display {
+            font-size: 60px;
             color: #1a73e8;
+            margin-bottom: 20px;
+            transition: color 0.3s;
         }
-
-        /* تنسيق حقل الإيميل ليصبح بشكل عصري */
-        input[type="email"] {
-            padding: 10px;
-            border: 2px solid #1a73e8;
-            border-radius: 5px; /* جعل حواف الصندوق دائرية وناعمة */
-            width: 80%;
+        button {
+            padding: 15px 30px;
+            font-size: 18px;
+            background-color: #34a853;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
 
-    <h1>مساري الاحترافي لراتب 2000 دولار</h1>
-    <p>أهدافي للشهور الثلاثة الأولى:</p>
-
-    <ul>
-        <li>إتقان لغة HTML بالكامل من الهاتف.</li>
-        <li>فهم كيفية عمل متصفحات الإنترنت.</li>
-        <li>البرمجة اليومية لمدة ساعة بدون انقطاع.</li>
-    </ul>
-
-    <p>لمتابعة محرك البحث المفضل لدي، اضغط على الرابط بالأسفل:</p>
+    <h1>عداد الذكاء والشرط</h1>
     
-    <a href="https://www.google.com" target="_blank">اضغط هنا لزيارة جوجل</a>
+    <div class="counter-display" id="number">0</div>
     
-    <br><br>
-    <label>سجل إيميلك لتبدأ:</label><br>
-    <input type="email" placeholder="name@example.com">
+    <button id="addBtn">اضغط للزيادة</button>
+
+    <script>
+        let count = 0;
+
+        const numberDisplay = document.getElementById('number');
+        const addButton = document.getElementById('addBtn');
+
+        addButton.addEventListener('click', function() {
+            count = count + 1;
+            numberDisplay.innerText = count;
+
+            if (count >= 20) {
+                numberDisplay.style.color = 'yellow'; 
+            } else if (count >= 5) { 
+                numberDisplay.style.color = 'black'; 
+            } else {
+                numberDisplay.style.color = '#1a73e8';
+            }
+        });
+    </script>
 
 </body>
 </html>
