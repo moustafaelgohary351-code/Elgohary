@@ -2,26 +2,29 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>Atlas Gallery Pro</title>
+    <title>Atlas Image Gallery</title>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; }
         canvas { display: block; }
         #uiLayer {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            background: #000; z-index: 10; color: white; text-align: center;
+            background: rgba(0,0,0,0.95); z-index: 10; color: white; text-align: center;
         }
         .btn { padding: 15px 30px; margin: 10px; border-radius: 30px; border: none; background: #fff; cursor: pointer; font-weight: bold; font-size: 18px; }
+        #status { margin-top: 15px; font-size: 16px; color: #00ff00; }
     </style>
 </head>
 <body>
 
     <div id="uiLayer">
-        <h2>اختر الصور (بدون FileReader)</h2>
+        <h2>اختر صورك (تحديد متعدد)</h2>
+        <p>استخدم ضغطة مطولة لتحديد عدة صور في مدير ملفاتك</p>
         <input type="file" id="fileInput" multiple accept="image/*" style="display:none">
-        <button class="btn" onclick="document.getElementById('fileInput').click()">📁 استعراض الملفات</button>
-        <button class="btn" style="background: #007bff; color: white;" onclick="startApp()">🚀 ابدأ الآن</button>
-        <div id="status">جاهز للاختيار</div>
+        
+        <button class="btn" onclick="document.getElementById('fileInput').click()">📂 استعراض الملفات</button>
+        <button class="btn" style="background: #007bff; color: white;" onclick="startApp()">🚀 ابدأ التأثير</button>
+        <div id="status">لم يتم اختيار صور</div>
     </div>
 
     <canvas id="atlasCanvas"></canvas>
@@ -29,41 +32,42 @@
     <script>
         const canvas = document.getElementById('atlasCanvas');
         const ctx = canvas.getContext('2d');
+        const uiLayer = document.getElementById('uiLayer');
         const status = document.getElementById('status');
         
         let userImages = [];
         let pops = []; 
 
         document.getElementById('fileInput').onchange = (e) => {
-            const files = Array.from(e.target.files);
+            const files = e.target.files;
             if (files.length === 0) return;
             
             userImages = [];
-            status.innerText = "جاري التحميل...";
+            status.innerText = "جاري معالجة الصور...";
+            
+            let filesProcessed = 0;
 
-            files.forEach((file, index) => {
-                const img = new Image();
-                // نستخدم ObjectURL لأنها أسرع وأكثر استقراراً للأجهزة المحمولة
-                img.src = URL.createObjectURL(file);
-                
-                img.onload = () => {
-                    userImages.push(img);
-                    status.innerText = `تم تحميل ${userImages.length} من ${files.length}`;
+            for (let i = 0; i < files.length; i++) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    let img = new Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        userImages.push(img);
+                        filesProcessed++;
+                        status.innerText = `تم تحميل ${filesProcessed} من ${files.length} صورة`;
+                    };
                 };
-                
-                img.onerror = () => {
-                    console.log("خطأ في تحميل صورة: " + file.name);
-                };
-            });
+                reader.readAsDataURL(files[i]);
+            }
         };
 
         function startApp() {
-            if(userImages.length === 0) return alert("لا توجد صور محملة! تأكد من الضغط على 'تم' بعد التحديد.");
-            document.getElementById('uiLayer').style.display = 'none';
+            if(userImages.length === 0) return alert("الرجاء اختيار الصور أولاً!");
+            uiLayer.style.display = 'none';
             animate();
         }
 
-        // إضافة الصور بلمسة أو نقرة
         function addPop(x, y) {
             if(userImages.length === 0) return;
             const randomImg = userImages[Math.floor(Math.random() * userImages.length)];
@@ -73,26 +77,29 @@
         window.addEventListener('touchstart', (e) => addPop(e.touches[0].clientX, e.touches[0].clientY));
         window.addEventListener('mousedown', (e) => addPop(e.clientX, e.clientY));
 
+        function drawSoftImage(p) {
+            ctx.save();
+            ctx.globalAlpha = p.alpha;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 80, 0, Math.PI * 2);
+            ctx.clip(); 
+            ctx.drawImage(p.img, p.x - 80, p.y - 80, 160, 160);
+            ctx.restore();
+        }
+
         function animate() {
             ctx.fillStyle = '#000000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
             pops.forEach((p, i) => {
                 p.alpha -= 0.005;
-                
-                ctx.save();
-                ctx.globalAlpha = p.alpha;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 80, 0, Math.PI * 2);
-                ctx.clip(); 
-                ctx.drawImage(p.img, p.x - 80, p.y - 80, 160, 160);
-                ctx.restore();
-
+                drawSoftImage(p);
                 if(p.alpha <= 0) pops.splice(i, 1);
             });
             requestAnimationFrame(animate);
         }
         
+        window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
         canvas.width = window.innerWidth; canvas.height = window.innerHeight;
     </script>
 </body>
