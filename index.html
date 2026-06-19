@@ -2,96 +2,98 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>أطلس النجوم التفاعلي</title>
+    <title>Atlas Gallery Pro</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
-        canvas { display: block; position: fixed; top: 0; left: 0; z-index: 1; }
-        
-        .touch-container { 
-            position: fixed; z-index: 20; pointer-events: none;
-            display: flex; justify-content: center; align-items: center; 
-            animation: popUp 2s ease-out forwards; 
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; }
+        canvas { display: block; }
+        #uiLayer {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: #000; z-index: 10; color: white; text-align: center;
         }
-        .touch-image { 
-            width: 80px; height: 80px; object-fit: cover;
-            border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.4);
-            box-shadow: 0 0 20px rgba(100, 150, 255, 0.5);
-        }
-        @keyframes popUp {
-            0% { transform: scale(0.2); opacity: 0; }
-            50% { transform: scale(1.2); opacity: 1; }
-            100% { transform: scale(2); opacity: 0; }
-        }
+        .btn { padding: 15px 30px; margin: 10px; border-radius: 30px; border: none; background: #fff; cursor: pointer; font-weight: bold; font-size: 18px; }
     </style>
 </head>
 <body>
 
+    <div id="uiLayer">
+        <h2>اختر الصور (بدون FileReader)</h2>
+        <input type="file" id="fileInput" multiple accept="image/*" style="display:none">
+        <button class="btn" onclick="document.getElementById('fileInput').click()">📁 استعراض الملفات</button>
+        <button class="btn" style="background: #007bff; color: white;" onclick="startApp()">🚀 ابدأ الآن</button>
+        <div id="status">جاهز للاختيار</div>
+    </div>
+
     <canvas id="atlasCanvas"></canvas>
 
     <script>
-        const myImages = [
-            "https://i.ibb.co/pjJpM13N/FB-IMG-1713919218908.jpg",
-            "https://i.ibb.co/wh6VKrbm/FB-IMG-1713919181225.jpg",
-            "https://i.ibb.co/xSbxzpvs/FB-IMG-1713919166142.jpg",
-            "https://i.ibb.co/BHH4FdV8/FB-IMG-1713919144432.jpg",
-            "https://i.ibb.co/3mvpspyR/FB-IMG-1713919132767.jpg",
-            "https://i.ibb.co/xt2DvhfS/FB-IMG-1713919125782.jpg",
-            "https://i.ibb.co/39F1jtkZ/FB-IMG-1713919119347.jpg",
-            "https://i.ibb.co/BH5CzV1J/FB-IMG-1713919110832.jpg",
-        ];
-
-        let currentIndex = 0;
         const canvas = document.getElementById('atlasCanvas');
         const ctx = canvas.getContext('2d');
+        const status = document.getElementById('status');
         
-        function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-        window.addEventListener('resize', resize);
-        resize();
+        let userImages = [];
+        let pops = []; 
 
-        // نظام أطلس النجوم: نجوم بكثافة وأحجام واقعية
-        const stars = Array.from({length: 600}, () => ({ 
-            x: Math.random() * canvas.width, 
-            y: Math.random() * canvas.height, 
-            size: Math.random() * 1.2,
-            brightness: Math.random(),
-            angle: Math.random() * Math.PI * 2,
-            distance: Math.random() * 500
-        }));
+        document.getElementById('fileInput').onchange = (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+            
+            userImages = [];
+            status.innerText = "جاري التحميل...";
+
+            files.forEach((file, index) => {
+                const img = new Image();
+                // نستخدم ObjectURL لأنها أسرع وأكثر استقراراً للأجهزة المحمولة
+                img.src = URL.createObjectURL(file);
+                
+                img.onload = () => {
+                    userImages.push(img);
+                    status.innerText = `تم تحميل ${userImages.length} من ${files.length}`;
+                };
+                
+                img.onerror = () => {
+                    console.log("خطأ في تحميل صورة: " + file.name);
+                };
+            });
+        };
+
+        function startApp() {
+            if(userImages.length === 0) return alert("لا توجد صور محملة! تأكد من الضغط على 'تم' بعد التحديد.");
+            document.getElementById('uiLayer').style.display = 'none';
+            animate();
+        }
+
+        // إضافة الصور بلمسة أو نقرة
+        function addPop(x, y) {
+            if(userImages.length === 0) return;
+            const randomImg = userImages[Math.floor(Math.random() * userImages.length)];
+            pops.push({ x, y, alpha: 1, img: randomImg });
+        }
+
+        window.addEventListener('touchstart', (e) => addPop(e.touches[0].clientX, e.touches[0].clientY));
+        window.addEventListener('mousedown', (e) => addPop(e.clientX, e.clientY));
 
         function animate() {
-            // سماء عميقة بلون أزرق داكن (Navy Blue)
-            ctx.fillStyle = 'rgb(2, 5, 15)';
+            ctx.fillStyle = '#000000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            stars.forEach(s => {
-                // دوران السماء حول المركز
-                s.angle += 0.0002; 
-                const centerX = canvas.width / 2;
-                const centerY = canvas.height / 2;
-                const x = centerX + Math.cos(s.angle) * s.distance;
-                const y = centerY + Math.sin(s.angle) * s.distance;
-
-                ctx.fillStyle = `rgba(200, 230, 255, ${0.5 + Math.sin(Date.now() * 0.002 + s.brightness) * 0.5})`;
+            pops.forEach((p, i) => {
+                p.alpha -= 0.005;
+                
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
                 ctx.beginPath();
-                ctx.arc(x, y, s.size, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.arc(p.x, p.y, 80, 0, Math.PI * 2);
+                ctx.clip(); 
+                ctx.drawImage(p.img, p.x - 80, p.y - 80, 160, 160);
+                ctx.restore();
+
+                if(p.alpha <= 0) pops.splice(i, 1);
             });
             requestAnimationFrame(animate);
         }
-        animate();
-
-        window.addEventListener('touchstart', (e) => {
-            const touch = e.touches[0];
-            const container = document.createElement('div');
-            container.className = 'touch-container';
-            container.style.left = (touch.clientX - 40) + 'px';
-            container.style.top = (touch.clientY - 40) + 'px';
-            container.innerHTML = `<img src="${myImages[currentIndex]}" class="touch-image">`;
-            document.body.appendChild(container);
-            currentIndex = (currentIndex + 1) % myImages.length;
-            setTimeout(() => container.remove(), 2000);
-        });
+        
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
     </script>
 </body>
 </html>
