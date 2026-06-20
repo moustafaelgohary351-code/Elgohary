@@ -2,29 +2,23 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>Atlas Image Gallery</title>
+    <title>Atlas Independent Panels System</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; }
-        canvas { display: block; }
-        #uiLayer {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            background: rgba(0,0,0,0.95); z-index: 10; color: white; text-align: center;
-        }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
+        canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+        #uiLayer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #000; z-index: 10; color: white; text-align: center; }
         .btn { padding: 15px 30px; margin: 10px; border-radius: 30px; border: none; background: #fff; cursor: pointer; font-weight: bold; font-size: 18px; }
-        #status { margin-top: 15px; font-size: 16px; color: #00ff00; }
+        textarea { padding: 15px; width: 80%; max-width: 400px; height: 150px; border-radius: 10px; margin-bottom: 20px; }
     </style>
 </head>
 <body>
 
     <div id="uiLayer">
-        <h2>اختر صورك (تحديد متعدد)</h2>
-        <p>استخدم ضغطة مطولة لتحديد عدة صور في مدير ملفاتك</p>
+        <h2>أدخل 10 جمل (جملة في كل سطر)</h2>
+        <textarea id="userInput" placeholder="جملة 1&#10;جملة 2&#10;..."></textarea>
         <input type="file" id="fileInput" multiple accept="image/*" style="display:none">
-        
-        <button class="btn" onclick="document.getElementById('fileInput').click()">📂 استعراض الملفات</button>
+        <button class="btn" onclick="document.getElementById('fileInput').click()">📂 اختر الصور بالترتيب</button>
         <button class="btn" style="background: #007bff; color: white;" onclick="startApp()">🚀 ابدأ التأثير</button>
-        <div id="status">لم يتم اختيار صور</div>
     </div>
 
     <canvas id="atlasCanvas"></canvas>
@@ -32,69 +26,105 @@
     <script>
         const canvas = document.getElementById('atlasCanvas');
         const ctx = canvas.getContext('2d');
-        const uiLayer = document.getElementById('uiLayer');
-        const status = document.getElementById('status');
-        
+        const userInput = document.getElementById('userInput');
         let userImages = [];
         let pops = []; 
-
-        document.getElementById('fileInput').onchange = (e) => {
-            const files = e.target.files;
-            if (files.length === 0) return;
-            
-            userImages = [];
-            status.innerText = "جاري معالجة الصور...";
-            
-            let filesProcessed = 0;
-
-            for (let i = 0; i < files.length; i++) {
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    let img = new Image();
-                    img.src = event.target.result;
-                    img.onload = () => {
-                        userImages.push(img);
-                        filesProcessed++;
-                        status.innerText = `تم تحميل ${filesProcessed} من ${files.length} صورة`;
-                    };
-                };
-                reader.readAsDataURL(files[i]);
-            }
-        };
+        let globalIndex = 0; 
 
         function startApp() {
-            if(userImages.length === 0) return alert("الرجاء اختيار الصور أولاً!");
-            uiLayer.style.display = 'none';
+            if(userImages.length === 0) return alert("اختر الصور أولاً!");
+            document.getElementById('uiLayer').style.display = 'none';
             animate();
         }
 
+        document.getElementById('fileInput').onchange = (e) => {
+            userImages = [];
+            const files = Array.from(e.target.files);
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    let img = new Image();
+                    img.src = ev.target.result;
+                    img.onload = () => userImages.push(img);
+                };
+                reader.readAsDataURL(file);
+            });
+        };
+
         function addPop(x, y) {
             if(userImages.length === 0) return;
-            const randomImg = userImages[Math.floor(Math.random() * userImages.length)];
-            pops.push({ x, y, alpha: 1, img: randomImg });
+            const lines = userInput.value.split('\n').filter(l => l.trim() !== "");
+            
+            // اختيار الصورة والجملة المقابلة لها بالترتيب
+            const currentImg = userImages[globalIndex % userImages.length];
+            const currentText = lines[globalIndex % lines.length] || "تنبيه!";
+            globalIndex++;
+            
+            pops.push({ 
+                x, y, 
+                startTime: Date.now(), 
+                img: currentImg,
+                text: currentText,
+                size: 80,
+                flashColor: Math.random() > 0.5 ? "255, 0, 0" : "0, 100, 255"
+            });
         }
 
-        window.addEventListener('touchstart', (e) => addPop(e.touches[0].clientX, e.touches[0].clientY));
+        window.addEventListener('touchstart', (e) => { for(let t of e.changedTouches) addPop(t.clientX, t.clientY); });
         window.addEventListener('mousedown', (e) => addPop(e.clientX, e.clientY));
 
-        function drawSoftImage(p) {
-            ctx.save();
-            ctx.globalAlpha = p.alpha;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, 80, 0, Math.PI * 2);
-            ctx.clip(); 
-            ctx.drawImage(p.img, p.x - 80, p.y - 80, 160, 160);
-            ctx.restore();
-        }
-
         function animate() {
-            ctx.fillStyle = '#000000';
+            ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+            let now = Date.now();
             
             pops.forEach((p, i) => {
-                p.alpha -= 0.005;
-                drawSoftImage(p);
-                if(p.alpha <= 0) pops.splice(i, 1);
+                let elapsed = now - p.startTime;
+                
+                // --- مرحلة الظهور والتلاشي ---
+                if (elapsed < 5000) {
+                    ctx.save();
+                    ctx.globalAlpha = 1 - (elapsed / 5000);
+                    // رسم الصورة دائرية
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.clip();
+                    ctx.drawImage(p.img, p.x - p.size, p.y - p.size, p.size * 2, p.size * 2);
+                    ctx.restore();
+                    
+                    // رسم النص بعد ثانية
+                    if (elapsed > 1000) {
+                        ctx.save();
+                        ctx.font = "bold 40px Arial";
+                        ctx.fillStyle = "red";
+                        ctx.shadowColor = "white";
+                        ctx.shadowBlur = 10;
+                        ctx.textAlign = "center";
+                        // المسافة 7 سم (تقريبًا 250 بكسل) أسفل الصورة
+                        ctx.fillText(p.text, p.x, p.y + p.size + 250);
+                        ctx.restore();
+                    }
+                } 
+                // --- مرحلة الومضات ---
+                else if (elapsed < 25000) {
+                    if ((elapsed - 5000) % 2000 < 50) {
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                        ctx.clip();
+                        ctx.drawImage(p.img, p.x - p.size, p.y - p.size, p.size * 2, p.size * 2);
+                        
+                        ctx.globalCompositeOperation = 'screen';
+                        let grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
+                        grad.addColorStop(0, `rgba(${p.flashColor}, 0.9)`);
+                        grad.addColorStop(1, `rgba(${p.flashColor}, 0)`);
+                        ctx.fillStyle = grad;
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                } else {
+                    pops.splice(i, 1);
+                }
             });
             requestAnimationFrame(animate);
         }
