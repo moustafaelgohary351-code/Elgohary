@@ -1,110 +1,80 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html dir="rtl" lang="ar">
 <head>
     <meta charset="UTF-8">
-    <title>Atlas Visual System - Pro</title>
+    <title>Atlas Secure Chat - Pro</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; }
-        canvas { display: block; width: 100vw; height: 100vh; touch-action: none; position: fixed; z-index: 1; }
-        
-        #uiLayer { 
-            position: fixed; width: 100%; height: 100%; display: flex; flex-direction: column; 
-            justify-content: center; align-items: center; background: #000; z-index: 100; color: white; 
-            padding: 20px; overflow-y: auto; 
-        }
-        
-        /* القسم العلوي: الصور والزر */
-        #mediaSection { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 600px; }
-        #galleryContainer { 
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); 
-            gap: 10px; width: 100%; max-height: 30vh; overflow-y: auto; margin-bottom: 15px; padding: 10px;
-            background: rgba(255,255,255,0.05); border-radius: 10px;
-        }
-        .thumb-box { display: flex; flex-direction: column; align-items: center; font-size: 10px; }
-        .thumb { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid #555; transition: 0.3s; }
-        .flash-effect { border-color: #007bff; transform: scale(1.1); box-shadow: 0 0 10px #007bff; }
-
-        /* القسم السفلي: النصوص والبدء */
-        #controlSection { display: flex; flex-direction: column; align-items: center; margin-top: 20px; }
-        .btn { padding: 12px 25px; margin: 10px; border-radius: 30px; border: none; cursor: pointer; font-weight: bold; }
-        #dialogsContainer { margin-bottom: 10px; max-height: 20vh; overflow-y: auto; width: 250px; }
-        .text-input { background: rgba(255,255,255,0.1); border: 1px solid white; color: white; padding: 8px; width: 180px; }
-        .dialog-row { display: flex; align-items: center; margin-bottom: 10px; }
-        .floating-text { position: absolute; color: white; font-size: 24px; pointer-events: none; z-index: 60; transition: opacity 2s; background: rgba(0,0,0,0.6); padding: 5px; }
+        body { background: #121212; color: #00ff41; font-family: monospace; padding: 20px; }
+        #chat { height: 300px; border: 1px solid #333; overflow-y: scroll; margin-bottom: 10px; padding: 10px; background: #000; }
+        .controls { display: flex; gap: 10px; }
     </style>
 </head>
 <body>
-
-    <div id="uiLayer">
-        <h2>أطلس - نظام العرض المرئي</h2>
-        
-        <div id="mediaSection">
-            <div id="galleryContainer"></div>
-            <button class="btn" style="background: #333; color: white;" onclick="document.getElementById('fileInput').click()">📂 اختر حتى 100 صورة</button>
-        </div>
-
-        <div id="controlSection">
-            <div id="dialogsContainer">
-                <div class="dialog-row">
-                    <input type="text" class="text-input" placeholder="الجملة 1">
-                    <button class="add-btn" onclick="addDialogRow()">+</button>
-                </div>
-            </div>
-            <button class="btn" style="background: #007bff; color: white; font-size: 18px;" onclick="startApp()">🚀 ابدأ العرض</button>
-        </div>
-
-        <input type="file" id="fileInput" multiple accept="image/*" style="display:none" onchange="handleFiles(this)">
+    <h3>نظام أطلس المشفر (E2EE)</h3>
+    <div id="status">جاري الاتصال...</div>
+    <div id="chat"></div>
+    <div class="controls">
+        <input type="text" id="targetId" placeholder="ID الطرف الآخر">
+        <button onclick="connectToPeer()">اتصال</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+        <input type="text" id="msg" placeholder="اكتب رسالة...">
+        <button onclick="sendMessage()">إرسال</button>
+        <input type="file" id="fileInput" onchange="sendFile()">
     </div>
 
-    <canvas id="atlasCanvas"></canvas>
+<script>
+    let peer = new Peer();
+    let conn, sharedKey, myKeys;
 
-    <script>
-        const CONFIG = { fadeDuration: 5000, flashInterval: 5000, imageSize: 80 };
-        const canvas = document.getElementById('atlasCanvas');
-        const ctx = canvas.getContext('2d');
-        let userImages = [];
-        let pops = [];
-        let globalIndex = 0;
+    (async () => {
+        myKeys = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, false, ["deriveKey"]);
+        peer.on('open', id => document.getElementById('status').innerText = "معرفك: " + id);
+    })();
 
-        function handleFiles(input) {
-            const container = document.getElementById('galleryContainer');
-            container.innerHTML = '';
-            userImages = Array.from(input.files).slice(0, 100).map((file, index) => {
-                const img = new Image();
-                img.src = URL.createObjectURL(file);
-                const box = document.createElement('div');
-                box.className = 'thumb-box';
-                box.innerHTML = `<span>${index + 1}</span><img src="${img.src}" class="thumb">`;
-                container.appendChild(box);
-                return img;
-            });
-            startTutorial();
-        }
+    function connectToPeer() {
+        conn = peer.connect(document.getElementById('targetId').value);
+        setupConnection();
+    }
 
-        function startTutorial() {
-            const thumbs = document.querySelectorAll('.thumb');
-            let count = 0;
-            const interval = setInterval(() => {
-                if(count >= 10) return clearInterval(interval);
-                let randomThumb = thumbs[Math.floor(Math.random() * thumbs.length)];
-                if(randomThumb) {
-                    randomThumb.classList.add('flash-effect');
-                    setTimeout(() => randomThumb.classList.remove('flash-effect'), 500);
-                }
-                count++;
-            }, 800);
-        }
+    peer.on('connection', c => { conn = c; setupConnection(); });
 
-        function addDialogRow() {
-            const container = document.getElementById('dialogsContainer');
-            document.querySelectorAll('.add-btn').forEach(b => b.style.display = 'none');
-            const div = document.createElement('div');
-            div.className = 'dialog-row';
-            div.innerHTML = `<input type="text" class="text-input" placeholder="الجملة ${container.children.length + 1}"> <button class="add-btn" onclick="addDialogRow()">+</button>`;
-            container.appendChild(div);
-        }
+    async function setupConnection() {
+        const pubKey = await crypto.subtle.exportKey("raw", myKeys.publicKey);
+        conn.send({ type: 'handshake', key: pubKey });
+        
+        conn.on('data', async (data) => {
+            if (data.type === 'handshake') {
+                const theirKey = await crypto.subtle.importKey("raw", data.key, { name: "ECDH", namedCurve: "P-256" }, false, []);
+                sharedKey = await crypto.subtle.deriveKey({ name: "ECDH", public: theirKey }, myKeys.privateKey, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+                document.getElementById('status').innerText = "✅ متصل ومشفر";
+            } else {
+                const dec = await crypto.subtle.decrypt({ name: "AES-GCM", iv: data.iv }, sharedKey, data.ct);
+                document.getElementById('chat').innerHTML += `<div>صديقي: ${new TextDecoder().decode(dec)}</div>`;
+            }
+        });
+    }
 
-        function startApp() {
+    async function sendMessage() {
+        const msg = document.getElementById('msg').value;
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, sharedKey, new TextEncoder().encode(msg));
+        conn.send({ ct, iv });
+        document.getElementById('chat').innerHTML += `<div>أنا: ${msg}</div>`;
+    }
+
+    async function sendFile() {
+        const file = document.getElementById('fileInput').files[0];
+        const buffer = await file.arrayBuffer();
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, sharedKey, buffer);
+        conn.send({ ct, iv, filename: file.name });
+        document.getElementById('chat').innerHTML += `<div>أنا: أرسلت ملف ${file.name}</div>`;
+    }
+</script>
+</body>
+</html>
             if(userImages.length === 0) return alert("اختر الصور أولاً!");
             document.getElementById('uiLayer').style.display = 'none';
             animate();
