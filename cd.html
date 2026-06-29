@@ -1,1 +1,78 @@
 
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>Atlas Secure Chat - Pro</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        body { background: #121212; color: #00ff41; font-family: monospace; padding: 20px; }
+        #chat { height: 300px; border: 1px solid #333; overflow-y: scroll; margin-bottom: 10px; padding: 10px; background: #000; }
+        .controls { display: flex; gap: 10px; }
+    </style>
+</head>
+<body>
+    <h3>نظام أطلس المشفر (E2EE)</h3>
+    <div id="status">جاري الاتصال...</div>
+    <div id="chat"></div>
+    <div class="controls">
+        <input type="text" id="targetId" placeholder="ID الطرف الآخر">
+        <button onclick="connectToPeer()">اتصال</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+        <input type="text" id="msg" placeholder="اكتب رسالة...">
+        <button onclick="sendMessage()">إرسال</button>
+        <input type="file" id="fileInput" onchange="sendFile()">
+    </div>
+
+<script>
+    let peer = new Peer();
+    let conn, sharedKey, myKeys;
+
+    (async () => {
+        myKeys = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, false, ["deriveKey"]);
+        peer.on('open', id => document.getElementById('status').innerText = "معرفك: " + id);
+    })();
+
+    function connectToPeer() {
+        conn = peer.connect(document.getElementById('targetId').value);
+        setupConnection();
+    }
+
+    peer.on('connection', c => { conn = c; setupConnection(); });
+
+    async function setupConnection() {
+        const pubKey = await crypto.subtle.exportKey("raw", myKeys.publicKey);
+        conn.send({ type: 'handshake', key: pubKey });
+        
+        conn.on('data', async (data) => {
+            if (data.type === 'handshake') {
+                const theirKey = await crypto.subtle.importKey("raw", data.key, { name: "ECDH", namedCurve: "P-256" }, false, []);
+                sharedKey = await crypto.subtle.deriveKey({ name: "ECDH", public: theirKey }, myKeys.privateKey, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+                document.getElementById('status').innerText = "✅ متصل ومشفر";
+            } else {
+                const dec = await crypto.subtle.decrypt({ name: "AES-GCM", iv: data.iv }, sharedKey, data.ct);
+                document.getElementById('chat').innerHTML += `<div>صديقي: ${new TextDecoder().decode(dec)}</div>`;
+            }
+        });
+    }
+
+    async function sendMessage() {
+        const msg = document.getElementById('msg').value;
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, sharedKey, new TextEncoder().encode(msg));
+        conn.send({ ct, iv });
+        document.getElementById('chat').innerHTML += `<div>أنا: ${msg}</div>`;
+    }
+
+    async function sendFile() {
+        const file = document.getElementById('fileInput').files[0];
+        const buffer = await file.arrayBuffer();
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, sharedKey, buffer);
+        conn.send({ ct, iv, filename: file.name });
+        document.getElementById('chat').innerHTML += `<div>أنا: أرسلت ملف ${file.name}</div>`;
+    }
+</script>
+</body>
+</html>
